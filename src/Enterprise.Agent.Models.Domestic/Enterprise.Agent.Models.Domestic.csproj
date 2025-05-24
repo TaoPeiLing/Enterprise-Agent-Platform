@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Enterprise Agent Platform - Domestic Model Providers (Baidu, Alibaba, Tencent, etc.)</Description>
+    <PackageId>Enterprise.Agent.Models.Domestic</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enterprise.Agent.Contracts\Enterprise.Agent.Contracts.csproj" />
+    <ProjectReference Include="..\Enterprise.Agent.Core\Enterprise.Agent.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
