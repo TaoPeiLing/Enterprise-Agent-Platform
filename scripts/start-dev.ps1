@@ -48,3 +48,25 @@ Write-Host "✅ 构建成功" -ForegroundColor Green
 Write-Host "🧪 运行单元测试..." -ForegroundColor Yellow
 $testResult = dotnet test tests/Enterprise.Agent.Tests.Unit --logger "console;verbosity=minimal"
 if ($LASTEXITCODE -ne 0) {
+    Write-Host "⚠️  部分测试失败，但继续启动服务" -ForegroundColor Yellow
+} else {
+    Write-Host "✅ 所有测试通过" -ForegroundColor Green
+}
+
+# 创建日志目录
+$logDir = "src/Enterprise.Agent.Api/logs"
+if (!(Test-Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    Write-Host "📁 创建日志目录: $logDir" -ForegroundColor Cyan
+}
+
+# 启动API服务
+Write-Host "🌐 启动API服务..." -ForegroundColor Yellow
+Write-Host "📍 API地址: https://localhost:5001" -ForegroundColor Cyan
+Write-Host "📖 API文档: https://localhost:5001/swagger" -ForegroundColor Cyan
+Write-Host "🔍 健康检查: https://localhost:5001/health" -ForegroundColor Cyan
+Write-Host "" -ForegroundColor White
+Write-Host "按 Ctrl+C 停止服务" -ForegroundColor Gray
+
+Set-Location "src/Enterprise.Agent.Api"
+dotnet run --configuration Debug
