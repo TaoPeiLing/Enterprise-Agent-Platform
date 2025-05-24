@@ -1,15 +1,1 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <Description>Enterprise Agent Platform - Agent Implementations</Description>
-    <PackageId>Enterprise.Agent.Agents</PackageId>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Enterprise.Agent.Contracts\Enterprise.Agent.Contracts.csproj" />
-    <ProjectReference Include="..\Enterprise.Agent.Core\Enterprise.Agent.Core.csproj" />
-    <ProjectReference Include="..\Enterprise.Agent.Models.Ollama\Enterprise.Agent.Models.Ollama.csproj" />
-    <ProjectReference Include="..\Enterprise.Agent.Models.Domestic\Enterprise.Agent.Models.Domestic.csproj" />
-  </ItemGroup>
-
-</Project>
+...file content...
