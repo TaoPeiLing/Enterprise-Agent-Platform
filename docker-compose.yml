@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Enterprise Agent Platform API
+  enterprise-agent-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprise-agent-api
+    ports:
+      - "5000:8080"
+      - "5001:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ModelProviders__Ollama__BaseUrl=http://ollama:11434
+      - ModelProviders__Qwen__ApiKey=${QWEN_API_KEY:-}
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - agent-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Ollama服务
+  ollama:
+    image: ollama/ollama:latest
+    container_name: enterprise-agent-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - agent-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
