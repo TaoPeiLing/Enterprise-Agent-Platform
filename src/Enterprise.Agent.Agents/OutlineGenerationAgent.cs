@@ -1,6 +1,8 @@
 using Enterprise.Agent.Core.Agents; // Namespace for TenderAgentBase
 using Enterprise.Agent.Core.Services; // Namespace for ILanguageModelService
-using Enterprise.Agent.Contracts.Models; // For TenderOutline if it's used as a return type or parameter
+using Enterprise.Agent.Contracts.Models; // For TenderOutline
+using System; // For Guid, System.Math.Min
+using System.Threading.Tasks; // For Task, Task.Delay
 
 namespace Enterprise.Agent.Agents 
 {
@@ -11,17 +13,43 @@ namespace Enterprise.Agent.Agents
         {
         }
 
-        // 示例方法: 根据需求信息生成大纲
-        // public async Task<TenderOutline> GenerateOutlineAsync(string structuredRequirementInfo)
-        // {
-        //     // 实际会调用语言模型进行生成
-        //     // 并处理用户反馈进行迭代
-        //     await Task.Delay(100); // Simulate async work
-        //     return new TenderOutline 
-        //     { 
-        //         OutlineId = Guid.NewGuid().ToString(), 
-        //         OutlineContent = "Generated Outline (simulated)" 
-        //     };
-        // }
+        public async Task<TenderOutline> GenerateOutlineAsync(string projectId, string structuredRequirementInfo)
+        {
+            if (string.IsNullOrEmpty(structuredRequirementInfo))
+            {
+                // Or handle as an error, potentially returning null or throwing
+                return new TenderOutline
+                {
+                    OutlineId = Guid.NewGuid().ToString(),
+                    ProjectId = projectId,
+                    OutlineContent = "Error: Structured requirement info was empty. Cannot generate outline.",
+                    Version = 1,
+                    Status = "Error", 
+                    UserFeedback = string.Empty
+                };
+            }
+
+            // 模拟智能处理，实际应用中这里会调用语言模型或复杂的规则引擎
+            await Task.Delay(50); // Simulate some async work
+
+            // Simulate generating outline content based on requirements
+            string simulatedOutlineContent = $"Simulated Outline based on: '{structuredRequirementInfo.Substring(0, System.Math.Min(structuredRequirementInfo.Length, 75))}...'\n" +
+                                             "1. Introduction\n" +
+                                             "2. Key Requirements Analysis\n" +
+                                             "3. Proposed Solution Outline\n" +
+                                             "4. Conclusion";
+
+            var outline = new TenderOutline
+            {
+                OutlineId = Guid.NewGuid().ToString(),
+                ProjectId = projectId, // Associate with the project
+                OutlineContent = simulatedOutlineContent,
+                Version = 1, // Initial version
+                Status = "Draft", // Initial status
+                UserFeedback = string.Empty // No feedback initially
+            };
+            
+            return outline;
+        }
     }
 }

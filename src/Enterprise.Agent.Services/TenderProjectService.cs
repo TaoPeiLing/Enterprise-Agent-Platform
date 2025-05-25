@@ -19,7 +19,9 @@ namespace Enterprise.Agent.Services
                 CreatedBy = createdBy,
                 CreatedTime = DateTime.UtcNow,
                 CurrentStage = "Initial", // 初始阶段
-                RequirementDocument = string.Empty // 初始化为空
+                RequirementDocument = string.Empty, // 初始化为空
+                StructuredRequirementsOutput = string.Empty, // Initialize existing new property
+                CurrentOutlineJson = string.Empty // Initialize CurrentOutlineJson
             };
             _projects.Add(project);
             return Task.FromResult(project);
@@ -45,6 +47,28 @@ namespace Enterprise.Agent.Services
                 return Task.FromResult(true);
             }
             return Task.FromResult(false);
+        }
+
+        public Task<bool> UpdateProjectAsync(TenderProject projectToUpdate)
+        {
+            if (projectToUpdate == null)
+            {
+                return Task.FromResult(false); // Or throw ArgumentNullException
+            }
+
+            var existingProject = _projects.FirstOrDefault(p => p.ProjectId == projectToUpdate.ProjectId);
+            if (existingProject != null)
+            {
+                // Update all relevant properties from projectToUpdate to existingProject
+                existingProject.ProjectName = projectToUpdate.ProjectName;
+                existingProject.RequirementDocument = projectToUpdate.RequirementDocument; // Assuming this can be updated
+                existingProject.CurrentStage = projectToUpdate.CurrentStage;
+                existingProject.StructuredRequirementsOutput = projectToUpdate.StructuredRequirementsOutput; 
+                existingProject.CurrentOutlineJson = projectToUpdate.CurrentOutlineJson; // Ensure this line is present and correct
+                
+                return Task.FromResult(true);
+            }
+            return Task.FromResult(false); // Project not found
         }
     }
 }
