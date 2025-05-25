@@ -1,1 +1,15 @@
-...file content...
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Enterprise.Agent.Contracts\Enterprise.Agent.Contracts.csproj" />
+    <ProjectReference Include="..\Enterprise.Agent.Core\Enterprise.Agent.Core.csproj" />
+    <PackageReference Include="PdfPig" Version="0.1.8" />
+  </ItemGroup>
+
+</Project>
