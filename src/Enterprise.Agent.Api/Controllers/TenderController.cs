@@ -3,9 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks; // For async methods
 using Microsoft.AspNetCore.Http; // For IFormFile, StatusCodes
 using System.IO; // For MemoryStream
-using Enterprise.Agent.Contracts.Models; // For TenderProject in return type
+using Enterprise.Agent.Contracts.Models; // For TenderProject, TenderOutline
 using System; // For Exception, Console, ArgumentNullException
 using System.Collections.Generic; // For List<object>
+using System.Text.Json; // For JsonSerializer
 
 namespace Enterprise.Agent.Api.Controllers
 {
@@ -15,8 +16,6 @@ namespace Enterprise.Agent.Api.Controllers
     {
         private readonly ITenderProjectService _tenderProjectService;
         private readonly ITenderWorkflowService _tenderWorkflowService;
-        // IDocumentProcessingService and IUserInteractionService are injected but not used in all endpoints.
-        // They are kept as they might be used by other (future) endpoints in this controller.
         // private readonly IDocumentProcessingService _documentProcessingService; 
         // private readonly IUserInteractionService _userInteractionService;
 
@@ -28,8 +27,8 @@ namespace Enterprise.Agent.Api.Controllers
         {
             _tenderProjectService = tenderProjectService ?? throw new ArgumentNullException(nameof(tenderProjectService));
             _tenderWorkflowService = tenderWorkflowService ?? throw new ArgumentNullException(nameof(tenderWorkflowService));
-            // _documentProcessingService = documentProcessingService; // Injected but not used by all methods
-            // _userInteractionService = userInteractionService; // Injected but not used by all methods
+            // _documentProcessingService = documentProcessingService; 
+            // _userInteractionService = userInteractionService; 
         }
 
         // POST api/tender/projects
@@ -93,15 +92,37 @@ namespace Enterprise.Agent.Api.Controllers
                 return NotFound($"Project with ID '{id}' not found.");
             }
 
-            var simulatedOutline = new 
+            if (string.IsNullOrEmpty(project.CurrentOutlineJson))
             {
-                OutlineId = "simulated-outline-001", 
-                ProjectId = id,
-                Content = "Chapter 1: Introduction\nChapter 2: Requirements\nChapter 3: Solution", 
-                Status = project.CurrentStage == "OutlineGenerationPending" || project.CurrentStage == "OutlineRegenerationPending" ? "PendingUserReview" : project.CurrentStage, 
-                Version = 1 
-            };
-            return Ok(simulatedOutline);
+                // No outline has been generated or saved yet.
+                return NotFound($"No outline found or generated yet for project with ID '{id}'.");
+            }
+
+            try
+            {
+                // Deserialize the TenderOutline from the JSON string
+                var tenderOutline = JsonSerializer.Deserialize<TenderOutline>(project.CurrentOutlineJson);
+                if (tenderOutline == null)
+                {
+                    // This case should ideally not happen if CurrentOutlineJson is valid JSON
+                    // and represents a TenderOutline object.
+                    Console.WriteLine($"Error: Deserialized outline is null for project {id}. JSON: {project.CurrentOutlineJson}");
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Failed to deserialize the stored outline (result was null).");
+                }
+                return Ok(tenderOutline);
+            }
+            catch (JsonException jsonEx)
+            {
+                // Log the deserialization exception: jsonEx.Message
+                Console.WriteLine($"Error deserializing outline for project {id}: {jsonEx.Message}. JSON: {project.CurrentOutlineJson}"); 
+                return StatusCode(StatusCodes.Status500InternalServerError, "The stored outline data is corrupted or invalid.");
+            }
+            catch (Exception ex)
+            {
+                // Log any other unexpected exception: ex.Message
+                Console.WriteLine($"Unexpected error retrieving outline for project {id}: {ex.Message}"); 
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while retrieving the outline.");
+            }
         }
 
         // PUT api/tender/projects/{id}/outline
@@ -168,7 +189,6 @@ namespace Enterprise.Agent.Api.Controllers
                 return NotFound($"Project with ID '{id}' not found.");
             }
 
-            // Simulate fetching sections
             var simulatedSections = new List<object>
             {
                 new { SectionId = "section-001", ProjectId = id, ParentSectionId = "simulated-outline-001", SectionTitle = "Chapter 1: Introduction", Order = 1, Status = "Completed" },
@@ -191,10 +211,6 @@ namespace Enterprise.Agent.Api.Controllers
             {
                 return NotFound($"Project with ID '{id}' not found.");
             }
-
-            // TODO: In a real app, verify sectionId exists and belongs to the project.
-            // For now, simulate calling a workflow/section service method.
-            // await _tenderWorkflowService.UpdateSectionContentAsync(id, sectionId, request.SectionContent); // Assuming such a method exists or will be added
             
             Console.WriteLine($"Simulated update for project {id}, section {sectionId} with content: {request.SectionContent.Substring(0, Math.Min(request.SectionContent.Length, 50))}...");
             return Ok(new { Message = $"Section {sectionId} in project {id} updated (simulated)." });
@@ -212,8 +228,6 @@ namespace Enterprise.Agent.Api.Controllers
 
             try
             {
-                // TODO: This would call a method on _tenderWorkflowService that likely triggers the ContentIntegrationAgent
-                // string documentUrlOrContent = await _tenderWorkflowService.GenerateFullTenderDocumentAsync(id); // Assuming such a method
                 Console.WriteLine($"Simulated generation of full tender document for project {id}.");
                 return Ok(new { Message = "Full tender document generation process started (simulated).", DocumentReference = $"generated_tender_{id}.docx" });
             }
@@ -250,5 +264,4 @@ public class OutlineConfirmationRequest
 public class SectionUpdateRequest
 {
     public string SectionContent { get; set; }
-    // Potentially other fields like Status, UserFeedbackForSection, etc.
 }

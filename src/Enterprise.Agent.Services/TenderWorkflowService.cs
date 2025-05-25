@@ -57,10 +57,6 @@ namespace Enterprise.Agent.Services
             if (project == null)
             {
                 Console.WriteLine($"Error: Project {projectId} not found when trying to save structured requirements or generate outline.");
-                // It's crucial to stop if project is not found at this stage.
-                // Although GetProjectAsync might not change status, we reflect a critical failure.
-                // Consider if UpdateProjectStatusAsync should even be called if project is null.
-                // For now, following the pattern of trying to update status to reflect the error.
                 await _tenderProjectService.UpdateProjectStatusAsync(projectId, "CriticalErrorProjectNotFound");
                 return;
             }
@@ -81,36 +77,25 @@ namespace Enterprise.Agent.Services
             Console.WriteLine($"Project {projectId} status updated. Now attempting to generate outline...");
             await _tenderProjectService.UpdateProjectStatusAsync(projectId, "OutlineGenerationInProgress");
 
-            // Create OutlineGenerationAgent
             var outlineGenerationAgent = (OutlineGenerationAgent)_agentFactory.CreateAgent(
-                "OutlineGenerationAgent", // Type string for AgentFactory
-                $"outline-gen-{projectId}", // Example instance ID, make it unique per project/run
+                "OutlineGenerationAgent", 
+                $"outline-gen-{projectId}", 
                 "Default Outline Generator",
                 _languageModelService
             );
 
-            // Generate the outline using the structured requirements stored in the project object
             TenderOutline generatedOutline = await outlineGenerationAgent.GenerateOutlineAsync(projectId, project.StructuredRequirementsOutput);
 
             if (generatedOutline != null && generatedOutline.Status != "Error")
             {
-                // Serialize TenderOutline to JSON
                 string outlineJson = JsonSerializer.Serialize(generatedOutline);
-
-                // Update project with the generated outline JSON
-                // Re-fetch the project to ensure we have the latest version before updating CurrentOutlineJson,
-                // especially if other processes could modify it, or if UpdateProjectAsync doesn't return the updated object.
-                // However, in this sequential flow within a single method, using the existing 'project' instance
-                // should be safe if TenderProjectService's UpdateProjectAsync modifies the instance in-place
-                // or if no other modifications are expected between the SR update and this outline update.
-                // For simplicity and based on the current structure, we'll use the existing 'project' instance.
                 project.CurrentOutlineJson = outlineJson;
                 bool outlineSaveSuccess = await _tenderProjectService.UpdateProjectAsync(project);
 
                 if (outlineSaveSuccess)
                 {
                     Console.WriteLine($"Generated outline for project {projectId} saved: {outlineJson.Substring(0, Math.Min(outlineJson.Length,100))}...");
-                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "OutlineGenerated"); // Or "PendingOutlineReview"
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "OutlineGenerated");
                 }
                 else
                 {
@@ -127,14 +112,125 @@ namespace Enterprise.Agent.Services
 
         public async Task ProcessOutlineFeedbackAsync(string projectId, string outlineId, string userFeedback)
         {
-            await _tenderProjectService.UpdateProjectStatusAsync(projectId, "OutlineRegenerationPending");
-            Console.WriteLine($"Feedback for outline {outlineId} on project {projectId} received: {userFeedback}");
+            var project = await _tenderProjectService.GetProjectAsync(projectId);
+            if (project == null)
+            {
+                Console.WriteLine($"Error: Project {projectId} not found in ProcessOutlineFeedbackAsync.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(project.CurrentOutlineJson))
+            {
+                Console.WriteLine($"Error: No current outline found for project {projectId} to process feedback.");
+                await _tenderProjectService.UpdateProjectStatusAsync(projectId, "FeedbackError_NoOutline");
+                return;
+            }
+
+            try
+            {
+                var currentOutline = JsonSerializer.Deserialize<TenderOutline>(project.CurrentOutlineJson);
+                if (currentOutline == null)
+                {
+                    Console.WriteLine($"Error: Failed to deserialize current outline for project {projectId}.");
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "FeedbackError_Deserialization");
+                    return;
+                }
+
+                currentOutline.UserFeedback = userFeedback;
+                currentOutline.Status = "FeedbackReceived"; 
+                currentOutline.Version += 1; 
+
+                project.CurrentOutlineJson = JsonSerializer.Serialize(currentOutline);
+                
+                bool updateSuccess = await _tenderProjectService.UpdateProjectAsync(project);
+                if (updateSuccess)
+                {
+                    Console.WriteLine($"User feedback processed and outline updated for project {projectId}. New version: {currentOutline.Version}, Status: {currentOutline.Status}.");
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "OutlineFeedbackProcessed"); 
+                }
+                else
+                {
+                    Console.WriteLine($"Error: Failed to save updated outline with feedback for project {projectId}.");
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "FeedbackError_SaveFailed");
+                }
+            }
+            catch (JsonException jsonEx)
+            {
+                Console.WriteLine($"Error deserializing outline for feedback processing on project {projectId}: {jsonEx.Message}");
+                await _tenderProjectService.UpdateProjectStatusAsync(projectId, "FeedbackError_JsonException");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error in ProcessOutlineFeedbackAsync for project {projectId}: {ex.Message}");
+                await _tenderProjectService.UpdateProjectStatusAsync(projectId, "FeedbackError_Unexpected");
+            }
         }
 
         public async Task ConfirmOutlineAsync(string projectId, string outlineId)
         {
-            await _tenderProjectService.UpdateProjectStatusAsync(projectId, "ContentStructurePending");
-            Console.WriteLine($"Outline {outlineId} for project {projectId} confirmed by user.");
+            var project = await _tenderProjectService.GetProjectAsync(projectId);
+            if (project == null)
+            {
+                Console.WriteLine($"Error: Project {projectId} not found in ConfirmOutlineAsync.");
+                // Handle error (e.g., by returning or throwing, or setting a specific status if desired)
+                return;
+            }
+
+            if (string.IsNullOrEmpty(project.CurrentOutlineJson))
+            {
+                Console.WriteLine($"Error: No current outline found for project {projectId} to confirm.");
+                await _tenderProjectService.UpdateProjectStatusAsync(projectId, "ConfirmError_NoOutline");
+                return;
+            }
+
+            try
+            {
+                var currentOutline = JsonSerializer.Deserialize<TenderOutline>(project.CurrentOutlineJson);
+                if (currentOutline == null)
+                {
+                    Console.WriteLine($"Error: Failed to deserialize current outline for project {projectId} during confirmation.");
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "ConfirmError_Deserialization");
+                    return;
+                }
+
+                // Optional: Validate outlineId. For now, assume confirmation applies to the current outline.
+                // if (currentOutline.OutlineId != outlineId)
+                // {
+                //     Console.WriteLine($"Error: Provided outlineId {outlineId} does not match current outline ID {currentOutline.OutlineId} for project {projectId} during confirmation.");
+                //     // Handle mismatch, e.g., by returning or setting a specific status
+                //     return;
+                // }
+
+                currentOutline.Status = "Confirmed";
+                currentOutline.UserFeedback = string.Empty; // Clear feedback as it's now confirmed (optional)
+                // Version might or might not be incremented here. Let's assume it doesn't for just confirmation.
+
+                project.CurrentOutlineJson = JsonSerializer.Serialize(currentOutline);
+                
+                bool updateSuccess = await _tenderProjectService.UpdateProjectAsync(project);
+                if (updateSuccess)
+                {
+                    Console.WriteLine($"Outline for project {projectId} confirmed by user. Status: {currentOutline.Status}.");
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "OutlineConfirmed_ContentStructurePending"); 
+                }
+                else
+                {
+                    Console.WriteLine($"Error: Failed to save confirmed outline for project {projectId}.");
+                    await _tenderProjectService.UpdateProjectStatusAsync(projectId, "ConfirmError_SaveFailed");
+                }
+
+                // TODO (Future Step): This is the point to trigger the ContentStructureAgent
+            }
+            catch (JsonException jsonEx)
+            {
+                Console.WriteLine($"Error deserializing outline for confirmation on project {projectId}: {jsonEx.Message}");
+                await _tenderProjectService.UpdateProjectStatusAsync(projectId, "ConfirmError_JsonException");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error in ConfirmOutlineAsync for project {projectId}: {ex.Message}");
+                await _tenderProjectService.UpdateProjectStatusAsync(projectId, "ConfirmError_Unexpected");
+            }
         }
     }
 }
